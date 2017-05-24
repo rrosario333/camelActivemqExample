@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<beans xmlns="http://www.springframework.org/schema/beans"
+	xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+	xsi:schemaLocation="
+        http://www.springframework.org/schema/beans http://www.springframework.org/schema/beans/spring-beans.xsd
+        http://camel.apache.org/schema/spring http://camel.apache.org/schema/spring/camel-spring.xsd
+       ">
+	<bean id="jmsConnectionFactory" class="org.apache.activemq.ActiveMQConnectionFactory">
+		<property name="brokerURL" value="vm://localhost?broker.persistent=false" />
+	</bean>
+	<bean id="pooledConnectionFactory" class="org.apache.activemq.pool.PooledConnectionFactory"
+		init-method="start" destroy-method="stop">
+		<property name="maxConnections" value="8" />
+		<property name="connectionFactory" ref="jmsConnectionFactory" />
+	</bean>
+
+	<bean id="jmsTemplate" class="org.springframework.jms.core.JmsTemplate">
+		<property name="connectionFactory" ref="pooledConnectionFactory" />
+	</bean>
+
+	<camelContext xmlns="http://camel.apache.org/schema/spring">
+		<route>
+			<from uri="timer:foo?period=1s" />
+			<transform>
+				<simple>Heartbeat ${date:now:yyyy-MM-dd HH:mm:ss}</simple>
+			</transform>
+			<to uri="activemq:queue:in" />
+		</route>
+
+		<route>
+			<from uri="activemq:queue:in" />
+			<log message="Route message from inbox to outbox queue with data ${body}" />
+			<to uri="activemq:queue:out" />
+		</route>
+		
+		<route>
+			<from uri="activemq:queue:out" />
+			<log message="Print the message from out to console"/>
+			<to uri="stream:out" />
+		</route>
+
+	</camelContext>
+
+</beans>
